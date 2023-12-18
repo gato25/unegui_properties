@@ -13,13 +13,15 @@ class UneguiSpider(scrapy.Spider):
 
     
     def parse(self, response):
-        print(response.url)
-
         advert_contents = response.css('div.advert__content')
         for advert_content in advert_contents:
             href = advert_content.css('a::attr(href)').get()
             # print(href)
             yield scrapy.Request(url='https://unegui.mn'+href, callback=self.parse_details)
+
+        next_page = response.css('a.number-list-next::attr(href)').get()
+        if next_page is not None:
+            yield response.follow(next_page, self.parse)
 
     def parse_details(self, response):
         property_details = {}
