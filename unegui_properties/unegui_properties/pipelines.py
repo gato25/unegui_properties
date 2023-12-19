@@ -9,8 +9,8 @@ from itemadapter import ItemAdapter
 from collections import defaultdict
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
-from shared_models.unegui_property_models.models import Base, session_scope, Properties, PropertyImage 
-from shared_models.unegui_property_models import db_settings
+from models import Properties, PropertyImage, db_settings
+from models.base import session_scope, Base
 import re
 
 def remove_second_occurrences_and_comma(text):
@@ -86,7 +86,7 @@ class CleanPipeline:
             if item['brand'] in  ['Орон сууц', 'Үл хөдлөх']:
                 if 'сая' in price_txt:
                     number = self.extract_number(price_txt)
-                    if number < 20 and item['model'] != 'Гараж, контейнер, з-сууц':
+                    if number < 20 and item['model'] != 'Гараж, контейнер, з-сууц' and 'Талбай:' in item['property_details']:
                         item['price'] = item['property_details']['Талбай:'] * number * (10**6)
                     else:
                         item['price'] = self.extract_number(price_txt) * (10**6)
