@@ -9,7 +9,9 @@ from itemadapter import ItemAdapter
 from collections import defaultdict
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
-from models import Properties, PropertyImage, db_settings
+# from models import Properties, PropertyImage, db_settings
+from models.properties import Properties, PropertyImage
+from models import db_settings
 from models.base import session_scope, Base
 import re
 
@@ -136,10 +138,15 @@ class PostgresPipeline(object):
     def process_item(self, item, spider):
         with session_scope() as session:
             try:
+                exists = session.query(Properties).filter_by(link=item['link']).first()
+                if exists:
+                    return item
+
                 details = item['property_details']
                 property_type = 'Орон сууц' if item['brand'] == 'Орон сууц' else item.get('model', None)
 
                 property = Properties(
+                    link = item['link'],
                     rooms = item.get('room_number', 0),
                     garage = details.get('Гараж:',None),
                     balcony_number = details.get('Тагт:', None),

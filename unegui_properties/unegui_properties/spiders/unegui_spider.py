@@ -51,6 +51,7 @@ class UneguiSpider(scrapy.Spider):
         location = response.css('span[itemprop="address"]::text').get()
         
         yield {
+            'link': response.url,
             'property_details': property_details,
             'description': description,
             'img_urls': img_urls,
