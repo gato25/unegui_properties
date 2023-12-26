@@ -19,9 +19,9 @@ class UneguiSpider(scrapy.Spider):
             # print(href)
             yield scrapy.Request(url='https://unegui.mn'+href, callback=self.parse_details)
 
-        # next_page = response.css('a.number-list-next::attr(href)').get()
-        # if next_page is not None:
-        #     yield response.follow(next_page, self.parse)
+        next_page = response.css('a.number-list-next::attr(href)').get()
+        if next_page is not None:
+            yield response.follow(next_page, self.parse)
 
     def parse_details(self, response):
         property_details = {}
