@@ -138,43 +138,56 @@ class PostgresPipeline(object):
     def process_item(self, item, spider):
         with session_scope() as session:
             try:
-                exists = session.query(Properties).filter_by(link=item['link']).first()
-                if exists:
-                    return item
+                latitude = item['latitude']
+                longitude = item['longitude']
 
-                details = item['property_details']
-                property_type = 'Орон сууц' if item['brand'] == 'Орон сууц' else item.get('model', None)
+                if latitude and longitude:
+                    location = 'SRID=4326;POINT({} {})'.format(longitude, latitude)
+                else:
+                    location = None
 
-                property = Properties(
-                    link = item['link'],
-                    rooms = item.get('room_number', 0),
-                    garage = details.get('Гараж:',None),
-                    balcony_number = details.get('Тагт:', None),
-                    area = details.get('Талбай:', None),
-                    door = details.get('Хаалга:', None),
-                    window = details.get('Цонх:', None),
-                    floor = details.get('Шал:', None),
-                    window_number = details.get('Цонхны тоо:', None),
-                    building_floor = details.get('Барилгын давхар:', None),
-                    which_floor = details.get('Хэдэн давхарт:', None),
-                    commission_year = details.get('Ашиглалтанд орсон он:', None),
-                    leasing = details.get('Лизингээр авах боломж:', None),
-                    progress = details.get('Барилгын явц:', None),
-                    location = item.get('location', None),
-                    price = item.get('price', None),
-                    province = item.get('province', None),
-                    district = item.get('district', None),
-                    khoroo = item.get('khoroo', None),
-                    sell_type = item.get('sell_type', None),
-                    property_type = property_type
-                )
+                existing_property = session.query(Properties).filter_by(link=item['link']).first()
 
-                session.add(property)
-                session.flush()  # Flush to get the generated ID for car_listing
+                if existing_property:
+                    existing_property.lat = latitude
+                    existing_property.long = longitude
+                    existing_property.location = location
+                else:
+                    details = item['property_details']
+                    property_type = 'Орон сууц' if item['brand'] == 'Орон сууц' else item.get('model', None)
 
-                for img_url in item['img_urls']:
-                    property_image = PropertyImage(property_id=property.id, img_url=img_url)
-                    session.add(property_image)
+                    property = Properties(
+                        link = item['link'],
+                        rooms = item.get('room_number', 0),
+                        garage = details.get('Гараж:',None),
+                        balcony_number = details.get('Тагт:', None),
+                        area = details.get('Талбай:', None),
+                        door = details.get('Хаалга:', None),
+                        window = details.get('Цонх:', None),
+                        floor = details.get('Шал:', None),
+                        window_number = details.get('Цонхны тоо:', None),
+                        building_floor = details.get('Барилгын давхар:', None),
+                        which_floor = details.get('Хэдэн давхарт:', None),
+                        commission_year = details.get('Ашиглалтанд орсон он:', None),
+                        leasing = details.get('Лизингээр авах боломж:', None),
+                        progress = details.get('Барилгын явц:', None),
+                        location = location,
+                        price = item.get('price', None),
+                        province = item.get('province', None),
+                        district = item.get('district', None),
+                        khoroo = item.get('khoroo', None),
+                        sell_type = item.get('sell_type', None),
+                        property_type = property_type,
+                        lat=latitude,
+                        long=longitude
+                    )
+
+                    session.add(property)
+                    session.flush()  # Flush to get the generated ID for car_listing
+
+                    for img_url in item['img_urls']:
+                        property_image = PropertyImage(property_id=property.id, img_url=img_url)
+                        session.add(property_image)
 
      
 

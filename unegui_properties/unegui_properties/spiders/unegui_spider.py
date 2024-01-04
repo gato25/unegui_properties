@@ -49,6 +49,19 @@ class UneguiSpider(scrapy.Spider):
         model = breadcrumb[-1].css('span[itemprop="name"]::text').get()
         tags = [breadcrumb[i].css('span[itemprop="name"]::text').get() for i in range(3, len(breadcrumb))]
         location = response.css('span[itemprop="address"]::text').get()
+
+         # Extract the data-coords attribute value
+        data_coords = response.css('.js-open-announcement-location::attr(data-coords)').get()
+
+        lon, lat = None, None
+
+        if data_coords:
+            # Removing the unnecessary string parts and splitting by space
+            lon, lat = data_coords.replace('SRID=4326;POINT (', '').replace(')', '').split()
+
+            # Convert to float if needed
+            lon = float(lon)
+            lat = float(lat)
         
         yield {
             'link': response.url,
@@ -60,5 +73,8 @@ class UneguiSpider(scrapy.Spider):
             'brand': brand,
             'model': model,
             'tags': tags,
-            'location': location
+            'location': location,
+            'data_coords': data_coords,
+            'latitude': lat,
+            'longitude': lon
         }
