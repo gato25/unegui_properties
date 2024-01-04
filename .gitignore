@@ -6,3 +6,4 @@ dist
 output.json
 pypy.txt
 .env
+run_spider.sh

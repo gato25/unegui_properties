@@ -8,6 +8,7 @@ cryptography==41.0.7
 cssselect==1.2.0
 docutils==0.20.1
 filelock==3.13.1
+GeoAlchemy2==0.14.3
 greenlet==3.0.2
 hyperlink==21.0.0
 idna==3.6
@@ -54,7 +55,7 @@ SQLAlchemy==2.0.23
 tldextract==5.1.1
 Twisted==22.10.0
 typing_extensions==4.9.0
-unegui-models==0.1.4
+unegui-models==0.1.6
 urllib3==2.1.0
 w3lib==2.1.2
 zipp==3.17.0
