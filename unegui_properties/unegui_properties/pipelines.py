@@ -13,7 +13,17 @@ from sqlalchemy.engine.url import URL
 from models.properties import Properties, PropertyImage
 from models import db_settings
 from models.base import session_scope, Base
+
+from scrapy.pipelines.images import ImagesPipeline
+from scrapy.http import Request
+
 import re
+import requests
+import io
+import logging
+import json
+from urllib.parse import urlparse
+
 
 def remove_second_occurrences_and_comma(text):
     # Function to replace the second occurrences
@@ -152,6 +162,7 @@ class PostgresPipeline(object):
                     existing_property.lat = latitude
                     existing_property.long = longitude
                     existing_property.location = location
+                    item['property_id'] = existing_property.id
                 else:
                     details = item['property_details']
                     property_type = 'Орон сууц' if item['brand'] == 'Орон сууц' else item.get('model', None)
@@ -189,7 +200,7 @@ class PostgresPipeline(object):
                         property_image = PropertyImage(property_id=property.id, img_url=img_url)
                         session.add(property_image)
 
-     
+                    item['property_id'] = property.id
 
                 # session.commit() is automatically called by the session_scope context manager
             except Exception as e:
@@ -197,3 +208,94 @@ class PostgresPipeline(object):
                 # session.rollback() is automatically called by the session_scope context manager
                 raise
         return item
+
+
+class ImageFileServerPipeline(ImagesPipeline):
+    def __init__(self, *args, **kwargs):
+        super(ImageFileServerPipeline, self).__init__(*args, **kwargs)
+        self.images_by_link = {}  # Dictionary to store images by link
+
+    def get_media_requests(self, item, info):
+        property_id = item['property_id']
+
+        with session_scope() as session:
+            existing_property = session.query(Properties).filter_by(id=property_id).first()
+            if not existing_property.imgs_uploaded:
+                link = item['link']
+                # logging.info(f"hello world {link}")
+                if link not in self.images_by_link:
+                    self.images_by_link[link] = {'images': [], 'item': item}
+                for image_url in item['img_urls']:
+                    # logging.info(f"brand: {item['brand']} model: {item['model']}")
+                    request = Request(image_url)
+                    request.meta['link'] = link  # Pass the link with the request
+                    yield request
+            else:
+                logging.info(f"Image already uploaded, skipping download")
+
+    def media_downloaded(self, response, request, info):
+        link = request.meta['link']
+        if response.status == 200 and link in self.images_by_link:
+            self.images_by_link[link]['images'].append((response.url, response.body))
+            if len(self.images_by_link[link]['images']) == len(self.images_by_link[link]['item']['img_urls']):
+                self.upload_images(link)
+        else:
+            logging.error(f"Failed to download image {request.url}")
+
+    def upload_images(self, link):
+        try:
+            images = self.images_by_link[link]['images']
+            item = self.images_by_link[link]['item']
+            property_id = item['property_id']
+
+            token = self.get_token()
+
+            # url = "http://localhost:8091/file/uploads"
+            url = "https://gateway.invescore.mn/fs-dev/file/uploads"
+
+            model = item['model'].replace(',', '').replace(' ', '-')
+            brand = item['brand'].replace(' ', '-')
+
+            payload = {'filePath': f'uploads/unegui/properties/{model}', 'link': link}
+            headers = {'Authorization': f'Bearer {token}'}
+
+            files = [('file', (self.get_filename(image_url), io.BytesIO(image_content), 'image/jpeg')) for image_url, image_content in images]
+            response = requests.post(url, headers=headers, data=payload, files=files)
+
+            # logging.info(f"response {response.json()}")
+
+            if response.status_code != 200:
+                logging.error(f"Failed to upload images for link {link}")
+            else:
+                logging.info(f"Images uploaded successfully for link {link}")
+
+                with session_scope() as session:
+                    existing_car = session.query(Properties).filter_by(id=property_id).first()
+                    existing_car.imgs_uploaded = True
+
+
+            del self.images_by_link[link]  # Clear the stored images for this link
+        except Exception as e:
+            logging.info(f'error {e}')
+
+    def get_filename(self, url):
+        return urlparse(url).path.split('/')[-1]
+    
+    def get_token(self):
+        url = "https://gateway.invescore.mn/api/auth/signin-admin"
+
+        payload = json.dumps({
+            "username": "88212243",
+            "password": "2482079121c5711be1dc3d870eec175ee22ca00019a9c62fe67ef4e408e0fdb5",
+            "deviceToken": "dash",
+            "deviceName": "BrowserName.chrome - Netscape",
+            "platformName": "Win32",
+            "serial": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+            "ipAddress": "203.91.116.147"
+        })
+        headers = {
+            'Content-Type': 'application/json'
+        }
+
+        response = requests.request("POST", url, headers=headers, data=payload)
+        return response.json()['token']

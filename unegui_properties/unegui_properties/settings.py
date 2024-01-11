@@ -66,7 +66,11 @@ ITEM_PIPELINES = {
 #    "unegui_crawler.pipelines.UneguiCrawlerPipeline": 300,
     'unegui_properties.pipelines.CleanPipeline': 200,
     "unegui_properties.pipelines.PostgresPipeline": 300,
+    "unegui_properties.pipelines.ImageFileServerPipeline": 400
 }
+
+LOG_LEVEL = 'INFO'
+
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
