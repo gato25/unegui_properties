@@ -229,6 +229,7 @@ class ImageFileServerPipeline(ImagesPipeline):
                     # logging.info(f"brand: {item['brand']} model: {item['model']}")
                     request = Request(image_url)
                     request.meta['link'] = link  # Pass the link with the request
+                    request.meta['file_name'] = image_url.split('/')[-1]
                     yield request
             else:
                 logging.info(f"Image already uploaded, skipping download")
@@ -236,7 +237,7 @@ class ImageFileServerPipeline(ImagesPipeline):
     def media_downloaded(self, response, request, info):
         link = request.meta['link']
         if response.status == 200 and link in self.images_by_link:
-            self.images_by_link[link]['images'].append((response.url, response.body))
+            self.images_by_link[link]['images'].append((response.url, response.body, request.meta['file_name']))
             if len(self.images_by_link[link]['images']) == len(self.images_by_link[link]['item']['img_urls']):
                 self.upload_images(link)
         else:
@@ -259,8 +260,10 @@ class ImageFileServerPipeline(ImagesPipeline):
             payload = {'filePath': f'uploads/unegui/properties/{model}', 'link': link}
             headers = {'Authorization': f'Bearer {token}'}
 
-            files = [('file', (self.get_filename(image_url), io.BytesIO(image_content), 'image/jpeg')) for image_url, image_content in images]
+            files = [('file', (self.get_filename(image_url), io.BytesIO(image_content), 'image/jpeg')) for image_url, image_content, file_name in images]
             response = requests.post(url, headers=headers, data=payload, files=files)
+
+            file_paths = response.json()['filies']
 
             # logging.info(f"response {response.json()}")
 
@@ -270,8 +273,15 @@ class ImageFileServerPipeline(ImagesPipeline):
                 logging.info(f"Images uploaded successfully for link {link}")
 
                 with session_scope() as session:
-                    existing_car = session.query(Properties).filter_by(id=property_id).first()
-                    existing_car.imgs_uploaded = True
+                    existing_property = session.query(Properties).filter_by(id=property_id).first()
+                    existing_property.imgs_uploaded = True
+                    
+                    for image_url, _, file_name in images:
+                        for file_path in file_paths:
+                            if file_name in file_path:
+                                property_image = session.query(PropertyImage).filter_by(img_url=image_url).first()
+                                property_image.img_server_url = file_path
+                                break
 
 
             del self.images_by_link[link]  # Clear the stored images for this link
