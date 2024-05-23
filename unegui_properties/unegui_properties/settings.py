@@ -65,8 +65,9 @@ ROBOTSTXT_OBEY = True
 ITEM_PIPELINES = {
 #    "unegui_crawler.pipelines.UneguiCrawlerPipeline": 300,
     'unegui_properties.pipelines.CleanPipeline': 200,
-    "unegui_properties.pipelines.PostgresPipeline": 300,
-    "unegui_properties.pipelines.ImageFileServerPipeline": 400
+    'unegui_properties.pipelines.SurrealDBPipeline': 300,
+    # "unegui_properties.pipelines.PostgresPipeline": 300,
+    # "unegui_properties.pipelines.ImageFileServerPipeline": 400
 }
 
 LOG_LEVEL = 'INFO'

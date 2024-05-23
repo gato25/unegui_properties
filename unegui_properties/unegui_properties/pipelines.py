@@ -23,7 +23,9 @@ import io
 import logging
 import json
 from urllib.parse import urlparse
-
+from surrealdb import Surreal
+from itemadapter import ItemAdapter
+from contextlib import asynccontextmanager
 
 def remove_second_occurrences_and_comma(text):
     # Function to replace the second occurrences
@@ -134,6 +136,68 @@ class CleanPipeline:
     def extract_number(self, text):
         match = re.search(r'\d+\.\d+|\d+', text)
         return float(match.group()) if match else None
+
+@asynccontextmanager
+async def get_surrealdb_connection():
+    db = Surreal('wss://yrdy-holy-glade-7363.fly.dev/rpc')  # Replace with your SurrealDB endpoint
+    await db.connect()
+    await db.signin({
+        'user': 'root',  # Replace with your SurrealDB user
+        'pass': 'root'   # Replace with your SurrealDB password
+    })
+    await db.use('test', 'test')  # Replace with your database and namespace
+    try:
+        yield db
+    finally:
+        await db.close()
+
+class SurrealDBPipeline:
+    def open_spider(self, spider):
+        self.db = None
+
+    async def process_item(self, item, spider):
+        async with get_surrealdb_connection() as db:
+            self.db = db
+            await self.save_to_db(item, spider)
+        return item
+
+    async def save_to_db(self, item, spider):
+        adapter = ItemAdapter(item)
+        data = {
+            'link': adapter.get('link'),
+            'rooms': adapter.get('room_number', 0),
+            'garage': adapter.get('property_details', {}).get('Гараж:', None),
+            'balcony_number': adapter.get('property_details', {}).get('Тагт:', None),
+            'area': adapter.get('property_details', {}).get('Талбай:', None),
+            'door': adapter.get('property_details', {}).get('Хаалга:', None),
+            'window': adapter.get('property_details', {}).get('Цонх:', None),
+            'floor': adapter.get('property_details', {}).get('Шал:', None),
+            'window_number': adapter.get('property_details', {}).get('Цонхны тоо:', None),
+            'building_floor': adapter.get('property_details', {}).get('Барилгын давхар:', None),
+            'which_floor': adapter.get('property_details', {}).get('Хэдэн давхарт:', None),
+            'commission_year': adapter.get('property_details', {}).get('Ашиглалтанд орсон он:', None),
+            'leasing': adapter.get('property_details', {}).get('Лизингээр авах боломж:', None),
+            'progress': adapter.get('property_details', {}).get('Барилгын явц:', None),
+            'location': adapter.get('location'),
+            'price': adapter.get('price', None),
+            'province': adapter.get('province', None),
+            'district': adapter.get('district', None),
+            'khoroo': adapter.get('khoroo', None),
+            'sell_type': adapter.get('sell_type', None),
+            'property_type': 'Орон сууц' if adapter.get('brand') == 'Орон сууц' else adapter.get('model', None),
+            'lat': adapter.get('latitude'),
+            'long': adapter.get('longitude'),
+            'img_urls': adapter.get('img_urls')
+        }
+        try:
+            await self.db.create('properties', data)
+            logging.info(f"Item saved to SurrealDB: {data}")
+        except Exception as e:
+            logging.error(f"Error saving item to SurrealDB: {e}")
+
+    def close_spider(self, spider):
+        if self.db:
+            self.db.close()
 
 
 class PostgresPipeline(object):
